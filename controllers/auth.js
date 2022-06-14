@@ -2,6 +2,7 @@ const { response } = require('express');
 const Usuario = require('../models/Usuario');
 const bcrypt = require('bcryptjs');
 const { generarJWT } = require('../helpers/jwt');
+const { db } = require('../models/Usuario');
 
 const crearUsuario = async (req, res = response) => {
 	const { email, name, password } = req.body;
@@ -24,7 +25,7 @@ const crearUsuario = async (req, res = response) => {
 		dbUser.password = bcrypt.hashSync(password, salt);
 
 		// Generar el JWT
-		const token = await generarJWT(dbUser.id, name);
+		const token = await generarJWT(dbUser.id, name, email);
 
 		// Crear usuario de DB
 		await dbUser.save();
@@ -34,6 +35,7 @@ const crearUsuario = async (req, res = response) => {
 			ok: true,
 			uid: dbUser.id,
 			name,
+			email,
 			token,
 		});
 	} catch (error) {
@@ -64,7 +66,7 @@ const loginUsuario = async (req, res = response) => {
 		if (!validPassword) {
 			return res.status(400).json({
 				ok: false,
-				msg: 'El password no es válido',
+				msg: 'Elpassword no es válido',
 			});
 		}
 
@@ -76,6 +78,7 @@ const loginUsuario = async (req, res = response) => {
 			ok: true,
 			uid: dbUser.id,
 			name: dbUser.name,
+			email: dbUser.email,
 			token,
 		});
 	} catch (error) {
@@ -89,15 +92,26 @@ const loginUsuario = async (req, res = response) => {
 };
 
 const revalidarToken = async (req, res = response) => {
-	const { uid, name } = req;
+	const { uid } = req;
+
+	// Leer la BD
+	const dbUser = await Usuario.findById(uid);
+
+	if (!dbUser) {
+		return res.status(404).json({
+			ok: false,
+			msg: 'Usuario no encontrado',
+		});
+	}
 
 	// Generar el JWT
-	const token = await generarJWT(uid, name);
+	const token = await generarJWT(uid, dbUser.name);
 
 	return res.json({
 		ok: true,
 		uid,
-		name,
+		name: dbUser.name,
+		email: dbUser.email,
 		token,
 	});
 };
